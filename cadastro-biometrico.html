@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadastro Biométrico</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f12;
+    --surface: #141720;
+    --surface2: #1c2030;
+    --border: #252a3a;
+    --accent: #4fffb0;
+    --accent2: #7b8cde;
+    --warn: #ff6b6b;
+    --text: #e8eaf0;
+    --text-dim: #6b7280;
+    --text-mid: #9ca3af;
+    --radius: 12px;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 36px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .logo-icon svg { width: 20px; height: 20px; }
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--warn);
+    animation: pulse 2s infinite;
+  }
+  .status-dot.connected { background: var(--accent); }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* LAYOUT */
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 0;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 28px;
+    gap: 24px;
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  /* READER STATUS */
+  .reader-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .reader-visual {
+    width: 100%;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin-bottom: 16px;
+  }
+  .finger-ring {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    transition: border-color 0.3s;
+  }
+  .finger-ring.scanning {
+    border-color: var(--accent);
+    animation: ring-pulse 1s infinite;
+  }
+  .finger-ring.success { border-color: var(--accent); }
+  .finger-ring.error { border-color: var(--warn); }
+  @keyframes ring-pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(79,255,176,0.3); }
+    50% { box-shadow: 0 0 0 12px rgba(79,255,176,0); }
+  }
+  .finger-icon { font-size: 2rem; }
+  .scan-progress {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    display: none;
+  }
+  .scan-progress.active { display: block; }
+  .scan-bar {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    border-radius: 2px;
+    transition: width 0.1s;
+  }
+  .reader-status-text {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-mid);
+    font-family: var(--mono);
+  }
+  .reader-status-text.ok { color: var(--accent); }
+  .reader-status-text.err { color: var(--warn); }
+
+  /* FORM */
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  label {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    letter-spacing: 0.06em;
+  }
+  input, select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: var(--sans);
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  input:focus, select:focus { border-color: var(--accent2); }
+  input::placeholder { color: var(--text-dim); }
+
+  /* BUTTONS */
+  .btn {
+    padding: 11px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #0d0f12;
+    width: 100%;
+  }
+  .btn-primary:hover { background: #3de89e; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-secondary {
+    background: transparent;
+    color: var(--text-mid);
+    border: 1px solid var(--border);
+    width: 100%;
+  }
+  .btn-secondary:hover { border-color: var(--accent2); color: var(--text); }
+  .btn-danger {
+    background: transparent;
+    color: var(--warn);
+    border: 1px solid transparent;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+  }
+  .btn-danger:hover { border-color: var(--warn); background: rgba(255,107,107,0.08); }
+
+  .fingerprint-selector {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .finger-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    padding: 6px 4px;
+    cursor: pointer;
+    font-size: 0.65rem;
+    font-family: var(--mono);
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .finger-btn:hover { border-color: var(--accent2); color: var(--text); }
+  .finger-btn.selected { border-color: var(--accent); color: var(--accent); background: rgba(79,255,176,0.06); }
+  .finger-btn.enrolled { border-color: var(--accent2); background: rgba(123,140,222,0.08); }
+
+  /* CONTENT / TABLE */
+  .content {
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .content-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .content-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .stats-row {
+    display: flex;
+    gap: 14px;
+  }
+  .stat-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .stat-num {
+    font-size: 1.3rem;
+    font-weight: 800;
+    font-family: var(--mono);
+    color: var(--accent);
+  }
+  .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+
+  /* SEARCH */
+  .search-bar {
+    display: flex;
+    gap: 10px;
+  }
+  .search-bar input { flex: 1; }
+
+  /* TABLE */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    flex: 1;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  thead {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    padding: 12px 18px;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  td {
+    padding: 14px 18px;
+    font-size: 0.875rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .avatar {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    background: var(--accent2);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: white;
+    flex-shrink: 0;
+  }
+  .name-cell { display: flex; align-items: center; gap: 12px; }
+  .bio-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(79,255,176,0.08);
+    border: 1px solid rgba(79,255,176,0.2);
+    color: var(--accent);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: 0.7rem;
+    font-family: var(--mono);
+  }
+  .bio-badge.none {
+    background: rgba(107,114,128,0.1);
+    border-color: var(--border);
+    color: var(--text-dim);
+  }
+  .actions-cell { display: flex; gap: 4px; align-items: center; }
+  .btn-icon {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.15s;
+  }
+  .btn-icon:hover { border-color: var(--accent2); color: var(--text); }
+
+  /* TOAST */
+  .toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 999;
+  }
+  .toast {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 0.85rem;
+    font-family: var(--mono);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideIn 0.3s ease;
+    min-width: 260px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .toast.success { border-left: 3px solid var(--accent); }
+  .toast.error { border-left: 3px solid var(--warn); }
+  .toast.info { border-left: 3px solid var(--accent2); }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    width: 420px;
+    max-width: 95vw;
+  }
+  .modal-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 24px;
+  }
+  .modal-actions .btn { flex: 1; }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+  }
+  .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
+
+  /* SDK NOTICE */
+  .sdk-notice {
+    background: rgba(123,140,222,0.07);
+    border: 1px solid rgba(123,140,222,0.25);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 0.78rem;
+    color: var(--text-mid);
+    font-family: var(--mono);
+    line-height: 1.6;
+  }
+  .sdk-notice a { color: var(--accent2); }
+  .sdk-notice strong { color: var(--text); }
+
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+    header { padding: 14px 18px; }
+    .content { padding: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0d0f12" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2a9 9 0 0 1 9 9c0 3.6-2 6-4 8l-5 3-5-3c-2-2-4-4.4-4-8a9 9 0 0 1 9-9z"/>
+        <path d="M9 12c0-1.7 1.3-3 3-3s3 1.3 3 3"/>
+      </svg>
+    </div>
+    BioID Sistema
+  </div>
+  <div class="status-bar">
+    <div class="status-dot" id="readerDot"></div>
+    <span id="readerLabel">Leitor desconectado</span>
+  </div>
+</header>
+
+<main>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <!-- Reader visual -->
+    <div>
+      <div class="section-label">Leitor Biométrico</div>
+      <div class="reader-card">
+        <div class="reader-visual">
+          <div class="finger-ring" id="fingerRing">
+            <span class="finger-icon" id="fingerEmoji">👆</span>
+          </div>
+          <div class="scan-progress" id="scanProgress">
+            <div class="scan-bar" id="scanBar"></div>
+          </div>
+        </div>
+        <div class="reader-status-text" id="readerStatusText">Aguardando conexão do agente...</div>
+      </div>
+    </div>
+
+    <!-- Form -->
+    <div>
+      <div class="section-label">Novo Cadastro</div>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div class="form-group">
+          <label>NOME COMPLETO</label>
+          <input type="text" id="inputNome" placeholder="Ex: João da Silva">
+        </div>
+        <div class="form-group">
+          <label>CPF</label>
+          <input type="text" id="inputCpf" placeholder="000.000.000-00" maxlength="14">
+        </div>
+        <div class="form-group">
+          <label>SETOR / GRUPO</label>
+          <select id="inputSetor">
+            <option value="">Selecione...</option>
+            <option>Administrativo</option>
+            <option>Operacional</option>
+            <option>TI</option>
+            <option>RH</option>
+            <option>Segurança</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>DEDO A CADASTRAR</label>
+          <div class="fingerprint-selector">
+            <div class="finger-btn" data-finger="0">P.Esq</div>
+            <div class="finger-btn" data-finger="1">I.Esq</div>
+            <div class="finger-btn selected" data-finger="2">M.Dir</div>
+            <div class="finger-btn" data-finger="3">A.Dir</div>
+            <div class="finger-btn" data-finger="4">M.Dir</div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="btnCapture" onclick="startCapture()">
+          <span>☉</span> Capturar Digital
+        </button>
+        <button class="btn btn-secondary" id="btnSave" onclick="savePerson()" disabled>
+          ＋ Salvar Cadastro
+        </button>
+      </div>
+    </div>
+
+    <!-- SDK notice -->
+    <div class="sdk-notice">
+      <strong>⚙ Requisito técnico:</strong><br>
+      Para usar o leitor, instale o <a href="https://crossmatch.hid.gl/lite-client" target="_blank">DigitalPersona Lite Client</a> (gratuito) na máquina.<br>
+      Ele cria o agente local que conecta o navegador ao hardware via WebSocket.
+    </div>
+  </aside>
+
+  <!-- CONTENT -->
+  <section class="content">
+    <div class="content-header">
+      <div class="content-title">Cadastros</div>
+      <div class="stats-row">
+        <div class="stat-chip">
+          <div>
+            <div class="stat-num" id="statTotal">0</div>
+            <div class="stat-label">TOTAL</div>
+          </div>
+        </div>
+        <div class="stat-chip">
+          <div>
+            <div class="stat-num" id="statBio">0</div>
+            <div class="stat-label">COM DIGITAL</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="🔍  Buscar por nome ou CPF..." oninput="renderTable()">
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>CPF</th>
+            <th>Setor</th>
+            <th>Digital</th>
+            <th>Cadastrado em</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+        </tbody>
+      </table>
+      <div class="empty-state" id="emptyState">
+        <div class="icon">🫆</div>
+        Nenhum cadastro ainda. Adicione o primeiro!
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- MODAL CONFIRM DELETE -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div class="modal-title">🗑 Remover cadastro?</div>
+    <p style="color:var(--text-mid);font-size:0.9rem;">Esta ação não pode ser desfeita. O cadastro e a digital serão removidos.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeDelete()">Cancelar</button>
+      <button class="btn btn-primary" style="background:var(--warn);color:white;" onclick="confirmDelete()">Remover</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let db = JSON.parse(localStorage.getItem('bioid_db') || '[]');
+let capturedTemplate = null;
+let deleteTarget = null;
+let selectedFinger = 2;
+let dpReader = null;
+let readerConnected = false;
+let scanningInterval = null;
+
+// ─── CPF MASK ────────────────────────────────────────────────────────────────
+document.getElementById('inputCpf').addEventListener('input', function(e) {
+  let v = e.target.value.replace(/\D/g, '');
+  if (v.length > 9) v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6,9)+'-'+v.slice(9,11);
+  else if (v.length > 6) v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6);
+  else if (v.length > 3) v = v.slice(0,3)+'.'+v.slice(3);
+  e.target.value = v;
+});
+
+// ─── FINGER SELECTOR ─────────────────────────────────────────────────────────
+document.querySelectorAll('.finger-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.finger-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedFinger = parseInt(btn.dataset.finger);
+  });
+});
+
+// ─── DP WEB SDK INTEGRATION ──────────────────────────────────────────────────
+// The DigitalPersona Web SDK communicates via WebSocket with the local agent.
+// This section initializes the SDK and handles real reader events.
+// REQUIREMENT: DigitalPersona Lite Client must be installed on the machine.
+
+function initSDK() {
+  // Attempt to load the WebSdk library dynamically (included with Lite Client / SDK)
+  // Path may vary; adjust if installed in a different location.
+  const script = document.createElement('script');
+  // The Lite Client installs the WebSdk at this local path in most setups:
+  script.src = 'http://localhost:15896/websdk.client.ui.min.js';
+  script.onerror = () => {
+    // WebSdk not found locally; try npm CDN fallback for dev
+    tryNpmSdk();
+  };
+  script.onload = () => setupReader();
+  document.head.appendChild(script);
+}
+
+function tryNpmSdk() {
+  // Fallback: try to connect anyway using @digitalpersona/devices via CDN
+  const cdnScript = document.createElement('script');
+  cdnScript.src = 'https://unpkg.com/@digitalpersona/websdk@latest/websdk.client.bundle.js';
+  cdnScript.onerror = () => setReaderStatus('disconnected', 'Instale o Lite Client (HID) para usar o leitor');
+  cdnScript.onload = () => setupReader();
+  document.head.appendChild(cdnScript);
+}
+
+function setupReader() {
+  try {
+    // Assumes WebSdk global is available after script load
+    if (typeof WebSdk === 'undefined') {
+      setReaderStatus('disconnected', 'Agente local não encontrado');
+      return;
+    }
+    // Load @digitalpersona/devices for FingerprintReader class
+    const devScript = document.createElement('script');
+    devScript.src = 'https://unpkg.com/@digitalpersona/devices@1.1.9/dist/iife/index.js';
+    devScript.onload = () => {
+      try {
+        dpReader = new DigitalPersonaDevices.FingerprintReader();
+        dpReader.on('DeviceConnected', onDeviceConnected);
+        dpReader.on('DeviceDisconnected', onDeviceDisconnected);
+        dpReader.on('SamplesAcquired', onSampleAcquired);
+        dpReader.on('ErrorOccurred', onReaderError);
+        setReaderStatus('connecting', 'Conectando ao leitor...');
+        dpReader.startAcquisition(DigitalPersonaDevices.SampleFormat.PngImage);
+      } catch(e) {
+        setReaderStatus('disconnected', 'Erro ao iniciar leitor: ' + e.message);
+      }
+    };
+    devScript.onerror = () => setReaderStatus('disconnected', 'Falha ao carregar SDK');
+    document.head.appendChild(devScript);
+  } catch(e) {
+    setReaderStatus('disconnected', 'Erro ao configurar SDK');
+  }
+}
+
+function onDeviceConnected(ev) {
+  readerConnected = true;
+  setReaderStatus('connected', 'Leitor conectado — coloque o dedo');
+}
+function onDeviceDisconnected(ev) {
+  readerConnected = false;
+  setReaderStatus('disconnected', 'Leitor desconectado');
+  capturedTemplate = null;
+  document.getElementById('btnSave').disabled = true;
+}
+function onSampleAcquired(ev) {
+  // ev.samples contains the fingerprint data (base64 PNG image)
+  const samples = ev.samples;
+  if (samples && samples.length > 0) {
+    capturedTemplate = JSON.stringify(samples[0]); // store as string
+    stopScanAnimation();
+    setReaderStatus('success', '✓ Digital capturada com sucesso!');
+    document.getElementById('fingerRing').className = 'finger-ring success';
+    document.getElementById('fingerEmoji').textContent = '✅';
+    document.getElementById('btnSave').disabled = false;
+    toast('Digital capturada!', 'success');
+  }
+}
+function onReaderError(ev) {
+  stopScanAnimation();
+  setReaderStatus('error', 'Erro: ' + (ev.error || 'falha na leitura'));
+  document.getElementById('fingerRing').className = 'finger-ring error';
+}
+
+// ─── CAPTURE FLOW ─────────────────────────────────────────────────────────────
+function startCapture() {
+  if (!readerConnected) {
+    // Demo/simulation mode when reader is not available
+    simulateCapture();
+    return;
+  }
+  // Real capture: SDK listens via SamplesAcquired event
+  setReaderStatus('scanning', 'Coloque o dedo no leitor...');
+  startScanAnimation();
+  document.getElementById('fingerRing').className = 'finger-ring scanning';
+  document.getElementById('fingerEmoji').textContent = '👆';
+}
+
+// SIMULATION MODE (for testing without hardware)
+function simulateCapture() {
+  toast('Modo demo: leitor não detectado', 'info');
+  setReaderStatus('scanning', 'Simulando captura...');
+  startScanAnimation();
+  document.getElementById('fingerRing').className = 'finger-ring scanning';
+  document.getElementById('fingerEmoji').textContent = '👆';
+
+  let progress = 0;
+  const bar = document.getElementById('scanBar');
+  const iv = setInterval(() => {
+    progress += 8 + Math.random() * 12;
+    bar.style.width = Math.min(progress, 100) + '%';
+    if (progress >= 100) {
+      clearInterval(iv);
+      capturedTemplate = 'DEMO_TEMPLATE_' + Date.now();
+      stopScanAnimation();
+      setReaderStatus('success', '✓ Digital capturada (demo)');
+      document.getElementById('fingerRing').className = 'finger-ring success';
+      document.getElementById('fingerEmoji').textContent = '✅';
+      document.getElementById('btnSave').disabled = false;
+      toast('Digital capturada! (simulação)', 'success');
+    }
+  }, 120);
+}
+
+function startScanAnimation() {
+  document.getElementById('scanProgress').classList.add('active');
+  document.getElementById('scanBar').style.width = '0%';
+}
+function stopScanAnimation() {
+  document.getElementById('scanProgress').classList.remove('active');
+}
+
+// ─── SAVE ─────────────────────────────────────────────────────────────────────
+function savePerson() {
+  const nome = document.getElementById('inputNome').value.trim();
+  const cpf = document.getElementById('inputCpf').value.trim();
+  const setor = document.getElementById('inputSetor').value;
+
+  if (!nome) { toast('Preencha o nome!', 'error'); return; }
+  if (!cpf || cpf.length < 14) { toast('CPF inválido!', 'error'); return; }
+  if (!setor) { toast('Selecione um setor!', 'error'); return; }
+
+  const exists = db.find(p => p.cpf === cpf);
+  if (exists) { toast('CPF já cadastrado!', 'error'); return; }
+
+  const person = {
+    id: Date.now(),
+    nome,
+    cpf,
+    setor,
+    finger: selectedFinger,
+    template: capturedTemplate,
+    createdAt: new Date().toLocaleDateString('pt-BR')
+  };
+
+  db.push(person);
+  saveDB();
+  renderTable();
+  resetForm();
+  toast('Cadastro salvo com sucesso!', 'success');
+}
+
+function resetForm() {
+  document.getElementById('inputNome').value = '';
+  document.getElementById('inputCpf').value = '';
+  document.getElementById('inputSetor').value = '';
+  capturedTemplate = null;
+  document.getElementById('btnSave').disabled = true;
+  document.getElementById('fingerRing').className = 'finger-ring';
+  document.getElementById('fingerEmoji').textContent = '👆';
+  setReaderStatus(readerConnected ? 'connected' : 'disconnected',
+    readerConnected ? 'Pronto — coloque o dedo' : 'Leitor desconectado');
+}
+
+// ─── TABLE ────────────────────────────────────────────────────────────────────
+function renderTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const filtered = db.filter(p =>
+    p.nome.toLowerCase().includes(q) || p.cpf.includes(q)
+  );
+  const tbody = document.getElementById('tableBody');
+  const empty = document.getElementById('emptyState');
+
+  document.getElementById('statTotal').textContent = db.length;
+  document.getElementById('statBio').textContent = db.filter(p => p.template).length;
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const fingerNames = ['Polegar Esq', 'Indicador Esq', 'Médio Esq', 'Anelar Esq', 'Mínimo Esq',
+    'Polegar Dir', 'Indicador Dir', 'Médio Dir', 'Anelar Dir', 'Mínimo Dir'];
+
+  tbody.innerHTML = filtered.map(p => `
+    <tr>
+      <td>
+        <div class="name-cell">
+          <div class="avatar" style="background:${avatarColor(p.nome)}">${initials(p.nome)}</div>
+          <strong>${p.nome}</strong>
+        </div>
+      </td>
+      <td style="font-family:var(--mono);font-size:0.8rem;color:var(--text-mid)">${p.cpf}</td>
+      <td style="font-size:0.85rem">${p.setor}</td>
+      <td>
+        ${p.template
+          ? `<span class="bio-badge">☉ ${fingerNames[p.finger] || 'Dedo'}</span>`
+          : `<span class="bio-badge none">— Sem digital</span>`}
+      </td>
+      <td style="font-family:var(--mono);font-size:0.75rem;color:var(--text-dim)">${p.createdAt}</td>
+      <td>
+        <div class="actions-cell">
+          <button class="btn-icon" onclick="editPerson(${p.id})" title="Editar">✎</button>
+          <button class="btn btn-danger" onclick="openDelete(${p.id})">✕ Remover</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function initials(name) {
+  return name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
+}
+function avatarColor(name) {
+  const colors = ['#7b8cde','#4fffb0','#f7a072','#c084fc','#60a5fa','#34d399'];
+  let h = 0;
+  for (let i=0; i<name.length; i++) h = (h * 31 + name.charCodeAt(i)) % colors.length;
+  return colors[h];
+}
+
+// ─── DELETE ───────────────────────────────────────────────────────────────────
+function openDelete(id) {
+  deleteTarget = id;
+  document.getElementById('deleteModal').classList.add('open');
+}
+function closeDelete() {
+  deleteTarget = null;
+  document.getElementById('deleteModal').classList.remove('open');
+}
+function confirmDelete() {
+  db = db.filter(p => p.id !== deleteTarget);
+  saveDB();
+  renderTable();
+  closeDelete();
+  toast('Cadastro removido', 'info');
+}
+
+// ─── EDIT (load into form) ────────────────────────────────────────────────────
+function editPerson(id) {
+  const p = db.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('inputNome').value = p.nome;
+  document.getElementById('inputCpf').value = p.cpf;
+  document.getElementById('inputSetor').value = p.setor;
+  capturedTemplate = p.template;
+  // Remove old entry to re-save
+  db = db.filter(x => x.id !== id);
+  saveDB();
+  document.getElementById('btnSave').disabled = false;
+  document.getElementById('fingerRing').className = 'finger-ring success';
+  document.getElementById('fingerEmoji').textContent = '✅';
+  if (p.template) setReaderStatus('success', '✓ Digital anterior carregada');
+  toast('Editando: ' + p.nome, 'info');
+}
+
+// ─── STATUS HELPER ────────────────────────────────────────────────────────────
+function setReaderStatus(type, msg) {
+  const dot = document.getElementById('readerDot');
+  const label = document.getElementById('readerLabel');
+  const text = document.getElementById('readerStatusText');
+  text.textContent = msg;
+  text.className = 'reader-status-text';
+  if (type === 'connected' || type === 'success') {
+    dot.classList.add('connected');
+    text.classList.add('ok');
+    label.textContent = 'Leitor conectado';
+  } else if (type === 'error') {
+    dot.classList.remove('connected');
+    text.classList.add('err');
+    label.textContent = 'Erro no leitor';
+  } else if (type === 'scanning' || type === 'connecting') {
+    dot.classList.add('connected');
+    label.textContent = type === 'scanning' ? 'Capturando...' : 'Conectando...';
+  } else {
+    dot.classList.remove('connected');
+    label.textContent = 'Leitor desconectado';
+  }
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const icons = { success: '✓', error: '✕', info: 'ℹ' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${icons[type]||'•'}</span> ${msg}`;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+// ─── PERSISTENCE ──────────────────────────────────────────────────────────────
+function saveDB() {
+  localStorage.setItem('bioid_db', JSON.stringify(db));
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+renderTable();
+// Attempt to connect to the DigitalPersona agent (Lite Client must be running)
+// Wrapped in setTimeout to not block initial render
+setTimeout(initSDK, 800);
+</script>
+</body>
+</html>
