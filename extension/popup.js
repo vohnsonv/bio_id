@@ -103,8 +103,11 @@ function setupCpfMask() {
 async function connectWS() {
   setStatus('connecting');
   let url = WS_URL;
+  let sslError = false;
+
   try {
-    const res = await fetch('https://127.0.0.1:52181/get_connection');
+    // Tenta primeiro o discovery do Lite Client (Windows)
+    const res = await fetch('https://127.0.0.1:52181/get_connection', { mode: 'cors' });
     if (res.ok) {
       const data = await res.json();
       if (data.endpoint) {
@@ -112,38 +115,71 @@ async function connectWS() {
       }
     }
   } catch (err) {
-    console.warn('Falha ao obter URL dinâmica do leitor (usando fallback portátil):', err);
+    console.warn('Discovery HID falhou:', err);
+    // Se falhar o fetch no 52181, é provável que seja erro de SSL/Certificado no Windows
+    sslError = true;
   }
 
   try {
+    // Tenta conectar no WebSocket (seja o dinâmico ou o fallback)
     ws = new WebSocket(url);
+    ws.binaryType = 'blob'; 
+    const ts = new Date().toLocaleTimeString();
+    const logConsole = document.getElementById('logConsole');
+    if (logConsole) logConsole.textContent += `\n[${ts}] Tentando conexão em: ${url}`;
   } catch (e) {
-    setStatus('disconnected');
+    console.error('Erro ao abrir WebSocket:', e);
+    setStatus('disconnected', sslError);
     return;
   }
 
   ws.onopen = () => {
     wsSend({ Path: '/dp/client/registrar', Data: { ClientVersion: '1.0', ProtocolVersion: '1.0' } });
+    wsSend({ Path: '/dp/fp/status', Data: {} }); // Ping de status
     setStatus('connected');
     wsReady = true;
     toast('Leitor conectado!', 's');
   };
 
   ws.onmessage = (evt) => {
+    const raw = evt.data;
+    const ts = new Date().toLocaleTimeString();
+    const logConsole = document.getElementById('logConsole');
+
+    if (logConsole) {
+      if (raw instanceof Blob) {
+        logConsole.textContent += `\n\n[${ts}] [WS-BINARY] Blob(${raw.size} bytes)`;
+        logConsole.scrollTop = logConsole.scrollHeight;
+        return; // Retorna pois o processamento JSON falharia
+      }
+      logConsole.textContent += `\n\n[${ts}] [WS-RAW]\n${raw}`;
+      logConsole.scrollTop = logConsole.scrollHeight;
+      // Limita tamanho do log para não pesar a CPU
+      if (logConsole.textContent.length > 50000) {
+        logConsole.textContent = logConsole.textContent.slice(-20000);
+      }
+    }
+
     let msg;
-    try { msg = JSON.parse(evt.data); } catch { return; }
+    try { 
+      msg = JSON.parse(raw); 
+    } catch (err) { 
+      console.warn("Mensagem não-JSON recebida:", raw);
+      return; 
+    }
     handleWSMessage(msg);
   };
 
   ws.onclose = () => {
     wsReady = false;
-    setStatus('disconnected');
+    setStatus('disconnected', sslError);
+    // Tenta reconectar em 5 segundos
     setTimeout(connectWS, 5000);
   };
 
   ws.onerror = () => {
     wsReady = false;
-    setStatus('disconnected');
+    setStatus('disconnected', true);
   };
 }
 
@@ -154,33 +190,31 @@ function wsSend(obj) {
 }
 
 function handleWSMessage(msg) {
-  const path = msg.Path || '';
+  // Padronização: Tratamos tanto o protocolo 'Path/Data' quanto o 'Event' nativo
+  const path = msg.Path || msg.Event || '';
+  const data = msg.Data || msg; // Se for HID nativo, os dados costumam estar na raiz
   
-  // Atualiza o Console na nova aba Logs
-  const logConsole = document.getElementById('logConsole');
-  if (logConsole) {
-    const ts = new Date().toLocaleTimeString();
-    let hwLog = msg.Data && msg.Data.HardwareLog ? `\n   ↳ [Hardware HW] ${msg.Data.HardwareLog.trim()}` : '';
-    logConsole.textContent += `\n\n[${ts}] [WebSocket] ${path}${hwLog}\n${JSON.stringify(msg)}`;
-    logConsole.scrollTop = logConsole.scrollHeight;
-  }
-
-  if (path === '/dp/fp/device/connected') {
+  if (path === '/dp/fp/device/connected' || path === 'DeviceConnected') {
     setStatus('connected');
     setReaderMsg('Leitor detectado — coloque o dedo', '', 'cad');
     setReaderMsg('Leitor detectado — coloque o dedo', '', 'search');
     toast('Leitor detectado', 's');
   }
 
-  if (path === '/dp/fp/device/disconnected') {
+  if (path === '/dp/fp/device/disconnected' || path === 'DeviceDisconnected') {
     setReaderMsg('Leitor desconectado', 'err', 'cad');
     setReaderMsg('Leitor desconectado', 'err', 'search');
     toast('Leitor desconectado', 'e');
   }
 
-  if (path === '/dp/fp/sample') {
+  if (path === '/dp/fp/sample' || path === 'SamplesAcquired') {
     stopSim(captureMode);
-    const sample = msg.Data.Samples[0];
+    
+    // Captura o sample independente se está em Data.Samples ou Samples na raiz
+    const samples = data.Samples || msg.samples || msg.Samples;
+    if (!samples || samples.length === 0) return;
+    
+    const sample = samples[0];
 
     if (captureMode === 'cad') {
       capturedFMD = sample;
@@ -267,6 +301,8 @@ function startCapture(mode) {
   } else {
     // Modo CADASTRO (1:1)
     wsSend({ Path: '/dp/fp/acquire', Data: {} });
+    // Fallback para HID SDK nativo
+    wsSend({ Method: 'StartAcquisition', Device: 'default' }); 
     setReaderMsg('Aguardando digital...', 'active', 'cad');
   }
 
@@ -534,15 +570,19 @@ function checkPendingImport() {
   });
 }
 
-function setStatus(state) {
+function setStatus(state, showDiag = false) {
   const dot   = document.getElementById('dot');
   const label = document.getElementById('statusLabel');
+  const diag  = document.getElementById('diagLink');
+
   if (state === 'connected' || state === 'connecting') {
     dot.classList.add('on');
     label.textContent = state === 'connected' ? 'Serviço Ativo' : 'Conectando...';
+    if (diag) diag.style.display = 'none';
   } else {
     dot.classList.remove('on');
     label.textContent = 'Serviço Biométrico Off-line';
+    if (diag) diag.style.display = showDiag ? 'inline' : 'none';
   }
 }
 

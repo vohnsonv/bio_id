@@ -61,6 +61,16 @@
   .dot.on { background: var(--accent); }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
 
+  #diagLink {
+    margin-left: 10px;
+    color: var(--accent2);
+    text-decoration: underline;
+    font-size: 0.65rem;
+    cursor: pointer;
+    display: none;
+  }
+  #diagLink:hover { color: var(--text); }
+
   /* TABS */
   .tabs {
     display: flex;
@@ -333,6 +343,7 @@
     <div class="status-pill">
       <div class="dot" id="dot"></div>
       <span id="statusLabel">Desconectado</span>
+      <a id="diagLink" href="https://127.0.0.1:52181/get_connection" target="_blank">Autorizar Leitor</a>
     </div>
   </div>
 </header>
@@ -463,9 +474,9 @@
 <!-- ══ LOGS ══ -->
 <div class="panel" id="pLogs" style="padding: 15px; height: calc(580px - 90px); overflow: hidden;">
   <div style="font-size: 1rem; font-weight: bold; margin-bottom: 10px; color: var(--text);">Terminal do Proxy Local</div>
-  <div id="logConsole" style="background:#0d0f12; border:1px solid #1c2030; font-family:var(--mono); font-size:0.65rem; color:var(--accent); padding:10px; height: calc(100% - 40px); overflow-y:auto; overflow-wrap:anywhere; border-radius:8px; white-space: pre-wrap; scrollbar-width: none;">[Sistema] Monitor do Agente Biométrico (ws://localhost:15896).
+  <div id="logConsole" style="background:#050608; border:1px solid #1c2030; font-family:var(--mono); font-size:0.65rem; color:var(--accent); padding:10px; height: calc(100% - 40px); overflow-y:auto; overflow-x:hidden; word-break:break-all; border-radius:8px; white-space: pre-wrap; scrollbar-width: thin;">[Sistema] Monitor do Agente Biométrico.
 Aguardando streaming...</div>
-  <style>#logConsole::-webkit-scrollbar { display: none; }</style>
+  <style>#logConsole::-webkit-scrollbar { width: 4px; } #logConsole::-webkit-scrollbar-thumb { background: var(--border); }</style>
 </div>
 
 <div id="toasts"></div>
