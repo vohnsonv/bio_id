@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>BioID</title>
+<title>LabSync | BioID</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -22,16 +22,28 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* Popups MV3 nao tem viewport de aba: 100vh/100vw costuma virar 0px e some toda a UI */
+  html {
+    width: 520px;
+    height: 720px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
   body {
     width: 100%;
-    min-width: 820px;
-    height: 580px; /* Altura fixa para evitar scroll no popup */
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
     background: var(--bg);
     color: var(--text);
     font-family: var(--sans);
     display: flex;
     flex-direction: column;
-    overflow: hidden; /* Remove scroll do body */
+    overflow: hidden;
   }
 
   /* HEADER */
@@ -93,16 +105,16 @@
   .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
   /* PANELS */
-  .panel { display: none; flex: 1; }
+  .panel { display: none; flex: 1; min-height: 0; overflow: hidden; }
   .panel.active { display: flex; }
 
   /* ── CADASTRAR PANEL ── */
-  #pCadastrar {
-    flex-direction: row;
-  }
+  #pCadastrar { flex-direction: row; min-height: 0; }
 
   .form-col {
-    width: 260px;
+    width: 32%;
+    min-width: 220px;
+    max-width: 300px;
     flex-shrink: 0;
     padding: 20px;
     border-right: 1px solid var(--border);
@@ -112,6 +124,7 @@
   }
   .reader-col {
     flex: 1;
+    min-width: 0;
     padding: 20px;
     display: flex;
     flex-direction: column;
@@ -232,6 +245,7 @@
     flex-direction: column;
     padding: 18px 20px;
     gap: 14px;
+    min-height: 0;
   }
   .lista-top {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -325,6 +339,95 @@
   .modal p { color: var(--mid); font-size: .85rem; line-height: 1.5; }
   .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
   .modal-btns .btn { flex: 1; }
+
+  /* ── PONTO PANEL ── */
+  #pPonto {
+    flex-direction: column;
+    padding: 18px 20px;
+    gap: 14px;
+    min-height: 0;
+  }
+  .ponto-grid {
+    display: grid;
+    grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+    gap: 14px;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .ponto-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 14px;
+  }
+  .photo-slot {
+    width: 100%;
+    height: 220px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: rgba(255,255,255,0.02);
+    color: var(--dim);
+    font-family: var(--mono);
+    font-size: .72rem;
+  }
+  .photo-slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .ponto-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .ponto-row .btn { width: auto; flex: 1; }
+  .ponto-kv {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 8px;
+    align-items: center;
+    font-size: .75rem;
+    font-family: var(--mono);
+    color: var(--mid);
+  }
+  .ponto-kv + .ponto-kv { margin-top: 8px; }
+  .ponto-kv strong { color: var(--text); font-family: var(--sans); font-size: .82rem; }
+  .ponto-log {
+    background: #050608;
+    border: 1px solid #1c2030;
+    border-radius: 8px;
+    padding: 10px;
+    font-family: var(--mono);
+    font-size: .68rem;
+    color: var(--accent);
+    overflow-y: auto;
+    height: 100%;
+    min-height: 180px;
+    white-space: pre-wrap;
+    scrollbar-width: thin;
+  }
+
+  @media (max-width: 900px) {
+    #pCadastrar { flex-direction: column; }
+    .form-col {
+      width: 100%;
+      max-width: none;
+      min-width: 0;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+    .ponto-grid {
+      grid-template-columns: 1fr;
+    }
+    .photo-slot {
+      height: 180px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -337,13 +440,12 @@
         <path d="M9 12c0-1.7 1.3-3 3-3s3 1.3 3 3"/>
       </svg>
     </div>
-    BioID Cadastro
+    LabSync | BioID
   </div>
   <div class="hdr-right">
     <div class="status-pill">
       <div class="dot" id="dot"></div>
       <span id="statusLabel">Desconectado</span>
-      <a id="diagLink" href="https://127.0.0.1:52181/get_connection" target="_blank">Autorizar Leitor</a>
     </div>
   </div>
 </header>
@@ -352,6 +454,7 @@
   <div class="tab" data-tab="pCadastrar">＋ Cadastrar</div>
   <div class="tab active" data-tab="pConsultar">🔍 Consultar</div>
   <div class="tab" data-tab="pLista">☰ Cadastros</div>
+  <div class="tab" data-tab="pPonto">🕒 Ponto</div>
   <div class="tab" data-tab="pLogs">⚙ Logs</div>
 </div>
 
@@ -459,6 +562,42 @@
   </div>
 </div>
 
+<!-- ══ PONTO ══ -->
+<div class="panel" id="pPonto">
+  <div class="ponto-grid">
+    <div class="ponto-card">
+      <div class="field">
+        <label>ID Colaborador</label>
+        <input id="pColabId" type="text" placeholder="Matrícula/ID interno">
+      </div>
+      <div class="field" style="margin-top: 10px;">
+        <label>Nome Completo</label>
+        <input id="pColabNome" type="text" placeholder="Nome do colaborador">
+      </div>
+      <div class="field" style="margin-top: 10px;">
+        <label>URL da Foto</label>
+        <input id="pColabFoto" type="url" placeholder="https://...">
+      </div>
+      <div class="photo-slot" id="photoSlot" style="margin-top: 12px;">Sem foto</div>
+      <div class="ponto-row">
+        <button class="btn btn-accent" id="btnStartListen">Iniciar Escuta</button>
+        <button class="btn btn-ghost" id="btnStopListen">Parar Escuta</button>
+      </div>
+      <button class="btn btn-ghost" id="btnRegistrarPonto" style="margin-top:8px;">Registrar Ponto</button>
+    </div>
+
+    <div class="ponto-card" style="display:flex; flex-direction:column; gap: 10px;">
+      <div class="ponto-kv"><span>Status agente</span><strong id="pStatusAgente">-</strong></div>
+      <div class="ponto-kv"><span>Status leitor</span><strong id="pStatusLeitor">-</strong></div>
+      <div class="ponto-kv"><span>Status escuta</span><strong id="pStatusEscuta">Parada</strong></div>
+      <div class="ponto-kv"><span>Ultimo cartao</span><strong id="pUltimoCartao">-</strong></div>
+      <div class="ponto-kv"><span>Ultima leitura</span><strong id="pUltimaLeitura">-</strong></div>
+      <div class="ponto-kv"><span>Ultimo envio</span><strong id="pUltimoEnvio">-</strong></div>
+      <div class="ponto-log" id="pontoLog">[PONTO] Pronto para iniciar escuta.</div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL DELETE -->
 <div class="overlay" id="delOverlay">
   <div class="modal">
@@ -472,9 +611,9 @@
 </div>
 
 <!-- ══ LOGS ══ -->
-<div class="panel" id="pLogs" style="padding: 15px; height: calc(580px - 90px); overflow: hidden;">
+<div class="panel" id="pLogs" style="padding: 15px; display:flex; flex-direction:column; min-height:0; overflow:hidden;">
   <div style="font-size: 1rem; font-weight: bold; margin-bottom: 10px; color: var(--text);">Terminal do Proxy Local</div>
-  <div id="logConsole" style="background:#050608; border:1px solid #1c2030; font-family:var(--mono); font-size:0.65rem; color:var(--accent); padding:10px; height: calc(100% - 40px); overflow-y:auto; overflow-x:hidden; word-break:break-all; border-radius:8px; white-space: pre-wrap; scrollbar-width: thin;">[Sistema] Monitor do Agente Biométrico.
+  <div id="logConsole" style="background:#050608; border:1px solid #1c2030; font-family:var(--mono); font-size:0.65rem; color:var(--accent); padding:10px; flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; word-break:break-all; border-radius:8px; white-space: pre-wrap; scrollbar-width: thin;">[Sistema] Monitor do Agente Biométrico.
 Aguardando streaming...</div>
   <style>#logConsole::-webkit-scrollbar { width: 4px; } #logConsole::-webkit-scrollbar-thumb { background: var(--border); }</style>
 </div>

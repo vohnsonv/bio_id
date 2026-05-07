@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // BioID Chrome Extension — popup.js
-// Comunicação com agente DigitalPersona Lite Client via WebSocket (porta 15896)
+// Comunicacao com agente local (IB Watson Mini + RFID) via WebSocket
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── CONSTANTES ───────────────────────────────────────────────────────────────
-const WS_URL      = 'ws://localhost:15896';   // porta padrão do agente HID
+const WS_URLS     = ['ws://127.0.0.1:15896', 'ws://localhost:15896'];
 const STORAGE_KEY = 'bioid_cadastros';
 const FINGER_NAMES = [
   'Polegar Esq','Indicador Esq','Médio Esq','Anelar Esq','Mínimo Esq',
@@ -20,6 +20,8 @@ let ws              = null;        // WebSocket ativo
 let wsReady         = false;
 let scanSimInterval = null;
 let captureMode     = 'cad';       // modo de operação: 'cad' | 'search'
+let pontoListening  = false;
+let ultimoCartaoUid = '';
 
 const fpSimHTML = `
 <div class="fp-sim">
@@ -33,6 +35,7 @@ const fpSimHTML = `
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  try {
   loadDB();
   renderTable();
   setupTabs();
@@ -49,6 +52,9 @@ document.addEventListener('DOMContentLoaded', () => {
     else if (btn.id === 'btnSave') savePerson();
     else if (btn.id === 'btnReset') resetForm();
     else if (btn.id === 'btnResetSearch') resetSearch();
+    else if (btn.id === 'btnStartListen') iniciarEscutaPonto();
+    else if (btn.id === 'btnStopListen') pararEscutaPonto();
+    else if (btn.id === 'btnRegistrarPonto') registrarPontoManual();
     else if (btn.id === 'btnCancelDel') closeModal();
     else if (btn.id === 'btnConfirmDel') confirmDel();
     else if (btn.classList.contains('edit-btn')) editPerson(Number(btn.dataset.id));
@@ -57,9 +63,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const searchInput = document.getElementById('search');
   if (searchInput) searchInput.addEventListener('input', renderTable);
+  const fotoInput = document.getElementById('pColabFoto');
+  if (fotoInput) fotoInput.addEventListener('input', updatePhotoSlot);
   
   // Auto-iniciar busca
   setTimeout(() => startCapture('search'), 600);
+  setTimeout(atualizarStatusPonto, 900);
+  } catch (err) {
+    console.error('[BioID popup] init falhou:', err);
+  }
 });
 
 // ── TABS ─────────────────────────────────────────────────────────────────────
@@ -88,7 +100,9 @@ function setupFingerGrid() {
 
 // ── MÁSCARA CPF ──────────────────────────────────────────────────────────────
 function setupCpfMask() {
-  document.getElementById('iCpf').addEventListener('input', function () {
+  const el = document.getElementById('iCpf');
+  if (!el) return;
+  el.addEventListener('input', function () {
     let v = this.value.replace(/\D/g, '').slice(0, 11);
     if      (v.length > 9) v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6,9)+'-'+v.slice(9);
     else if (v.length > 6) v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6);
@@ -98,48 +112,68 @@ function setupCpfMask() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WEBSOCKET — Protocolo DigitalPersona Lite Client
+// WEBSOCKET — Protocolo do agente local
 // ─────────────────────────────────────────────────────────────────────────────
 async function connectWS() {
   setStatus('connecting');
-  let url = WS_URL;
-  let sslError = false;
+  const logConsole = document.getElementById('logConsole');
+  let url = WS_URLS[0];
 
-  try {
-    // Tenta primeiro o discovery do Lite Client (Windows)
-    const res = await fetch('https://127.0.0.1:52181/get_connection', { mode: 'cors' });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.endpoint) {
-        url = data.endpoint.replace('https://', 'wss://');
-      }
+  const openSocket = (candidate) => new Promise((resolve) => {
+    let opened = false;
+    let socket;
+    try {
+      socket = new WebSocket(candidate);
+      socket.binaryType = 'blob';
+    } catch (e) {
+      resolve(null);
+      return;
     }
-  } catch (err) {
-    console.warn('Discovery HID falhou:', err);
-    // Se falhar o fetch no 52181, é provável que seja erro de SSL/Certificado no Windows
-    sslError = true;
+
+    const timer = setTimeout(() => {
+      if (!opened) {
+        try { socket.close(); } catch (e) {}
+        resolve(null);
+      }
+    }, 900);
+
+    socket.onopen = () => {
+      opened = true;
+      clearTimeout(timer);
+      resolve(socket);
+    };
+    socket.onerror = () => {
+      if (!opened) {
+        clearTimeout(timer);
+        resolve(null);
+      }
+    };
+  });
+
+  ws = null;
+  for (const candidate of WS_URLS) {
+    const ts = new Date().toLocaleTimeString();
+    if (logConsole) logConsole.textContent += `\n[${ts}] Tentando conexão em: ${candidate}`;
+    const sock = await openSocket(candidate);
+    if (sock) {
+      ws = sock;
+      url = candidate;
+      break;
+    }
   }
 
-  try {
-    // Tenta conectar no WebSocket (seja o dinâmico ou o fallback)
-    ws = new WebSocket(url);
-    ws.binaryType = 'blob'; 
-    const ts = new Date().toLocaleTimeString();
-    const logConsole = document.getElementById('logConsole');
-    if (logConsole) logConsole.textContent += `\n[${ts}] Tentando conexão em: ${url}`;
-  } catch (e) {
-    console.error('Erro ao abrir WebSocket:', e);
-    setStatus('disconnected', sslError);
+  if (!ws) {
+    setStatus('disconnected', false);
     return;
   }
 
-  ws.onopen = () => {
-    wsSend({ Path: '/dp/client/registrar', Data: { ClientVersion: '1.0', ProtocolVersion: '1.0' } });
-    wsSend({ Path: '/dp/fp/status', Data: {} }); // Ping de status
-    setStatus('connected');
-    wsReady = true;
-    toast('Leitor conectado!', 's');
-  };
+  wsSend({ Path: '/dp/client/registrar', Data: { ClientVersion: '1.0', ProtocolVersion: '1.0' } });
+  wsSend({ Path: '/dp/fp/status', Data: {} }); // Ping de status
+  setStatus('connected');
+  wsReady = true;
+  toast('Leitor conectado!', 's');
+  appendPontoLog(`[${new Date().toLocaleString('pt-BR')}] Agente conectado em ${url}`);
+  wsSend({ Path: '/agent/health', Data: {} });
 
   ws.onmessage = (evt) => {
     const raw = evt.data;
@@ -172,7 +206,8 @@ async function connectWS() {
 
   ws.onclose = () => {
     wsReady = false;
-    setStatus('disconnected', sslError);
+    setStatus('disconnected', false);
+    setPontoStatus('Parada');
     // Tenta reconectar em 5 segundos
     setTimeout(connectWS, 5000);
   };
@@ -192,7 +227,7 @@ function wsSend(obj) {
 function handleWSMessage(msg) {
   // Padronização: Tratamos tanto o protocolo 'Path/Data' quanto o 'Event' nativo
   const path = msg.Path || msg.Event || '';
-  const data = msg.Data || msg; // Se for HID nativo, os dados costumam estar na raiz
+  const data = msg.Data || msg; // Alguns eventos podem vir com dados na raiz
   
   if (path === '/dp/fp/device/connected' || path === 'DeviceConnected') {
     setStatus('connected');
@@ -273,6 +308,45 @@ function handleWSMessage(msg) {
       setReaderMsg('Qualidade do toque: ' + quality + '%', '', captureMode);
     }
   }
+
+  if (path === '/rfid/status') {
+    pontoListening = Boolean(data.listening);
+    setPontoStatus(pontoListening ? 'Escutando' : 'Parada');
+    if (data.rfid_available === false) {
+      appendPontoLog(`[${new Date().toLocaleString('pt-BR')}] Leitor RFID indisponivel no agente.`);
+    }
+    if (data.last_uid) {
+      ultimoCartaoUid = data.last_uid;
+      updatePontoField('pUltimoCartao', ultimoCartaoUid);
+    }
+  }
+
+  if (path === '/rfid/card-read') {
+    const uid = (data.uid || '').trim();
+    if (!uid) return;
+    ultimoCartaoUid = uid;
+    pontoListening = true;
+    const ts = new Date().toLocaleString('pt-BR');
+    setPontoStatus('Escutando');
+    updatePontoField('pUltimoCartao', uid);
+    updatePontoField('pUltimaLeitura', ts);
+    appendPontoLog(`[${ts}] Cartao lido: ${uid}`);
+    toast(`Cartao lido: ${uid}`, 'i');
+  }
+
+  if (path === '/rfid/punch/saved') {
+    const ts = new Date().toLocaleString('pt-BR');
+    updatePontoField('pUltimoEnvio', ts);
+    appendPontoLog(`[${ts}] Ponto salvo no PostgreSQL.`);
+    toast('Ponto registrado com sucesso', 's');
+  }
+
+  if (path === '/agent/health') {
+    const st = (data.status || '').toString().toLowerCase();
+    const healthy = st === 'ok' || st === 'up';
+    updatePontoField('pStatusAgente', healthy ? 'Online' : 'Offline');
+    updatePontoField('pStatusLeitor', data.has_pynput ? 'Reconhecido' : 'Nao reconhecido');
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -301,7 +375,6 @@ function startCapture(mode) {
   } else {
     // Modo CADASTRO (1:1)
     wsSend({ Path: '/dp/fp/acquire', Data: {} });
-    // Fallback para HID SDK nativo
     wsSend({ Method: 'StartAcquisition', Device: 'default' }); 
     setReaderMsg('Aguardando digital...', 'active', 'cad');
   }
@@ -428,7 +501,10 @@ function resetForm() {
 // ─────────────────────────────────────────────────────────────────────────────
 function renderTable() {
   const q      = (document.getElementById('search')?.value || '').toLowerCase();
-  const list   = db.filter(p => p.nome.toLowerCase().includes(q) || p.cpf.includes(q));
+  const list   = db.filter(p =>
+    (String(p.nome || '').toLowerCase().includes(q)) ||
+    (String(p.cpf || '').includes(q))
+  );
   const tbody  = document.getElementById('tbody');
   const empty  = document.getElementById('empty');
 
@@ -618,4 +694,76 @@ function Utils_formatDate(d) {
   if (!d) return '';
   const pts = d.split('-');
   return pts.length === 3 ? `${pts[2]}/${pts[1]}/${pts[0]}` : d;
+}
+
+function iniciarEscutaPonto() {
+  if (!wsReady) { toast('Agente offline para escuta de ponto', 'e'); return; }
+  wsSend({ Path: '/rfid/start-listen', Data: {} });
+  pontoListening = true;
+  setPontoStatus('Escutando');
+  appendPontoLog(`[${new Date().toLocaleString('pt-BR')}] Escuta iniciada.`);
+}
+
+function pararEscutaPonto() {
+  if (!wsReady) { toast('Agente offline para escuta de ponto', 'e'); return; }
+  wsSend({ Path: '/rfid/stop-listen', Data: {} });
+  pontoListening = false;
+  setPontoStatus('Parada');
+  appendPontoLog(`[${new Date().toLocaleString('pt-BR')}] Escuta parada.`);
+}
+
+function atualizarStatusPonto() {
+  if (!wsReady) return;
+  wsSend({ Path: '/rfid/status', Data: {} });
+}
+
+function registrarPontoManual() {
+  if (!wsReady) { toast('Agente offline para registrar ponto', 'e'); return; }
+  if (!ultimoCartaoUid) { toast('Nenhum cartao lido ainda', 'e'); return; }
+
+  const collaborator_id = document.getElementById('pColabId').value.trim();
+  const name = document.getElementById('pColabNome').value.trim();
+  const photo_url = document.getElementById('pColabFoto').value.trim();
+
+  if (!collaborator_id || !name) {
+    toast('Informe ID e nome do colaborador', 'e');
+    return;
+  }
+
+  wsSend({
+    Path: '/rfid/punch',
+    Data: {
+      card_uid: ultimoCartaoUid,
+      collaborator_id,
+      collaborator_name: name,
+      photo_url
+    }
+  });
+  appendPontoLog(`[${new Date().toLocaleString('pt-BR')}] Enviando ponto para VPS...`);
+}
+
+function updatePhotoSlot() {
+  const slot = document.getElementById('photoSlot');
+  const url = document.getElementById('pColabFoto').value.trim();
+  if (!url) {
+    slot.textContent = 'Sem foto';
+    return;
+  }
+  slot.innerHTML = `<img src="${url}" alt="Foto colaborador">`;
+}
+
+function appendPontoLog(msg) {
+  const el = document.getElementById('pontoLog');
+  if (!el) return;
+  el.textContent += `\n${msg}`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function setPontoStatus(text) {
+  updatePontoField('pStatusEscuta', text);
+}
+
+function updatePontoField(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value || '-';
 }
