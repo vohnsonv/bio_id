@@ -5,21 +5,38 @@
   "description": "Gerenciamento de cadastros biometricos e ponto RFID",
   "permissions": [
     "storage",
-    "tabs"
+    "tabs",
+    "scripting"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "host_permissions": [
     "*://app.worklabweb.com.br/*"
   ],
   "content_scripts": [
     {
       "matches": ["*://app.worklabweb.com.br/pacientesedit_api.php*"],
-      "js": ["worklab_sync.js"]
+      "js": ["database.js", "worklab_sync.js"]
+    },
+    {
+      "matches": ["*://app.worklabweb.com.br/index.php*", "*://app.worklabweb.com.br/"],
+      "js": ["database.js", "worklab_login.js"]
+    },
+    {
+      "matches": ["*://app.worklabweb.com.br/*"],
+      "js": ["database.js", "worklab_global.js"]
+    },
+    {
+      "matches": ["*://odoo.mavi.tec.br/*"],
+      "js": ["odoo_ponto.js"],
+      "all_frames": true
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": [ "popup.html", "popup.js", "icons/*" ],
-      "matches": [ "*://app.worklabweb.com.br/*" ]
+      "resources": ["worklab_sync.js", "images/*.jpeg", "images/*.png", "images/*.jpg", "crachas/*.png"],
+      "matches": ["*://app.worklabweb.com.br/*"]
     }
   ],
   "action": {

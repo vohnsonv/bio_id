@@ -30,57 +30,12 @@ function initWorklabSync() {
     const hasBiometria = db.find(p => p.worklab_id === pacienteId && p.fmd);
 
     if (hasBiometria) {
-      console.log("[Mavi Biometria] Paciente já possui digital. Nenhuma alteração aplicada.");
-      // Adicionando um pequeno aviso visual sutil caso deseje
+      console.log("[Mavi Biometria] Paciente já possui digital.");
       elCheckIcon.parentElement.title = "Biometria Ativa";
-      elCheckIcon.style.color = "#4fffb0"; // Mavi Highlight
+      elCheckIcon.style.color = "#4fffb0"; 
       return;
     }
 
-    console.log("[Mavi Biometria] Paciente sem digital! Injetando atalho...");
-
-    // Remove o Ícone de Check e coloca o Botão
-    const btnScan = document.createElement("button");
-    btnScan.innerHTML = "👆 Scanear Digital";
-    btnScan.style.cssText = `
-      background: #4fffb0;
-      color: #0d0f12;
-      border: none;
-      padding: 6px 12px;
-      margin-left: 10px;
-      border-radius: 4px;
-      font-weight: bold;
-      cursor: pointer;
-      font-family: monospace;
-      animation: pulseBtn 2s infinite;
-    `;
-    
-    // Animação CSS para chamar atenção
-    if (!document.getElementById("maviStyles")) {
-      const style = document.createElement("style");
-      style.id = "maviStyles";
-      style.innerHTML = `@keyframes pulseBtn { 0% { box-shadow: 0 0 0 0 rgba(79, 255, 176, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(79, 255, 176, 0); } 100% { box-shadow: 0 0 0 0 rgba(79, 255, 176, 0); } }`;
-      document.head.appendChild(style);
-    }
-
-    btnScan.onclick = (e) => {
-      e.preventDefault();
-      // Salva os dados no storage para auto-fill na extensão
-      const pendingData = {
-        id: pacienteId,
-        nome: pacienteNome,
-        cpf: pacienteCpf,
-        dataNasc: pacienteData,
-      };
-      chrome.storage.local.set({ "mavi_pending_import": pendingData }, () => {
-        // Abre o popup do chrome em uma janela avulsa
-        window.open(chrome.runtime.getURL("popup.html"), "MaviBiometria", "width=850,height=600,top=100,left=100");
-      });
-    };
-
-    // Insere o botão e oculta o botão/link Salvar inteiro
-    const parentContainer = elCheckIcon.closest('button') || elCheckIcon.closest('a') || elCheckIcon.parentElement;
-    parentContainer.style.display = "none";
-    parentContainer.parentNode.insertBefore(btnScan, parentContainer.nextSibling);
+    console.log("[Mavi Biometria] Paciente sem digital detectado.");
   });
 }

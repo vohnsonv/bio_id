@@ -1,10 +1,32 @@
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.DS_Store
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# BioID Agent Binaries
+agent/libs/libbio_helper.so
+agent/bio_diag
+agent/watson_cli
+agent/agent_debug.log
+
+# IDEs
 .vscode/
 .idea/
-*.log
+
+# Drivers/SDKs
 drivers/
 Drivers_Windows/
+DRIVER WATSON MINI/
+Latest IBScanUltimate SDK/
+agent/ib_sdk_linux/
+
+# Build & Distribution
+agent/build/
+agent/dist/
+agent/bio_agent.spec
+agent/libs/
+
+# System
+.DS_Store
